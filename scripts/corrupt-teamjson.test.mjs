@@ -147,6 +147,7 @@ test('B3: valid team.json still enforces the member delegation depth limit', asy
 const isRoot = typeof process.getuid === 'function' && process.getuid() === 0
 
 test('B4: unreadable (EACCES) team.json rejects delegated spawn with the actionable guard error', async t => {
+  if (process.platform === 'win32') { t.skip('Windows chmod does not enforce POSIX read permissions; skipping') ; return }
   if (isRoot) { t.skip('chmod-based EACCES is not enforced for root; skipping') ; return }
   const { root } = await workspaceWith(validTeam())
   t.after(() => rm(root, { recursive: true, force: true }))
