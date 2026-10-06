@@ -387,11 +387,50 @@ export function installMemberSelectionRuntime(
       if (!admitted) return { kind: 'reject' }
       return next()
     })
+    const teamSync = readTeamSync(stateRoot, teamId)
+    const durableMember = teamSync?.members.find(member => member.name === memberName)
+    let disposePresent: (() => void) | undefined
+    let disposeSuppress: (() => void) | undefined
+    let disposeCompletePersona: (() => void) | undefined
+    if (durableMember?.minimalPrompt === true || durableMember?.ephemeral === true) {
+      try {
+        disposePresent = (childCtx as unknown as { tools?: { presentAs?: (mode: string) => () => void } }).tools?.presentAs?.('native')
+      } catch (error) {
+        ctx.logger.warn(`agent-teams: failed to presentAs native for "${memberName}": ${String(error)}`)
+      }
+      try {
+        disposeSuppress = (childCtx as unknown as { systemPrompt?: { suppressRuntimeContext?: () => () => void } }).systemPrompt?.suppressRuntimeContext?.()
+      } catch (error) {
+        ctx.logger.warn(`agent-teams: failed to suppress runtime context for "${memberName}": ${String(error)}`)
+      }
+      try {
+        if (teamSync !== undefined && durableMember !== undefined) {
+          const persona = memberPersona(teamSync, durableMember, stateDir)
+          disposeCompletePersona = (childCtx as unknown as {
+            systemPrompt?: {
+              section?: (sec: { name: string; order: number; complete: boolean; text: () => string; interpolate: boolean }) => () => void
+            }
+          }).systemPrompt?.section?.({
+            name: `agent-teams:member:${memberName}:complete-persona`,
+            order: 0,
+            complete: true,
+            text: () => persona,
+            interpolate: false,
+          })
+        }
+      } catch (error) {
+        ctx.logger.warn(`agent-teams: failed to install complete persona for "${memberName}": ${String(error)}`)
+      }
+    }
+
     let selection = pending.get(key)
     if (selection === undefined) {
-      const team = readTeamSync(stateRoot, teamId)
-      if (team?.captainSessionId !== parentSessionId) return disposeAdmission
-      const durableMember = team.members.find(member => member.name === memberName)
+      if (teamSync?.captainSessionId !== parentSessionId) return () => {
+        disposeCompletePersona?.()
+        disposeSuppress?.()
+        disposePresent?.()
+        disposeAdmission()
+      }
       selection = selectionFromMember(durableMember)
       if (selection !== undefined && (descriptor.agentProvider !== durableMember?.provider || descriptor.agentModel !== durableMember?.model)) {
         throw new Error(
@@ -471,6 +510,9 @@ export function installMemberSelectionRuntime(
     return () => {
       disposeFallback()
       disposeSelection()
+      disposeCompletePersona?.()
+      disposeSuppress?.()
+      disposePresent?.()
       disposeFailure()
       disposeAdmission()
     }

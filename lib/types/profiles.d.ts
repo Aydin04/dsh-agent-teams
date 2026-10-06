@@ -27,6 +27,10 @@ export interface TeamProfileMemberConfig {
     reasoning_effort?: string;
     executionPrompt?: string;
     fallback?: TeamModelFallbackConfig;
+    tools?: string[];
+    minimal_prompt?: boolean;
+    minimalPrompt?: boolean;
+    ephemeral?: boolean;
 }
 /** One seed-task row in a named team-profile template (unresolved). */
 export interface TeamProfileTaskConfig {
@@ -61,6 +65,9 @@ export interface NormalizedProfileMember {
     reasoningEffort?: string;
     executionPrompt?: string;
     fallback?: TeamModelFallbackConfig;
+    tools?: string[];
+    minimalPrompt?: boolean;
+    ephemeral?: boolean;
 }
 /** A profile seed task after assignee canonicalization; `sourceIndex` is the YAML order. */
 export interface NormalizedProfileTask {

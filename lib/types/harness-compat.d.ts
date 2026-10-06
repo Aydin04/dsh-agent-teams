@@ -55,9 +55,11 @@ export declare function restrictableToolNames(agent: Agent): ReadonlySet<string>
  * Depth enforcement itself does not depend on these names —
  * installMemberDelegationGuard bounds descendant creation by parent chain.
  */
-export declare function memberToolFilter(maxDepth: number | undefined, knownTools: ReadonlySet<string> | undefined): {
-    deny: string[];
-};
+export interface MemberToolFilter {
+    allow?: string[];
+    deny?: string[];
+}
+export declare function memberToolFilter(maxDepth: number | undefined, knownTools: ReadonlySet<string> | undefined, memberAllowedTools?: readonly string[]): MemberToolFilter;
 /**
  * Start one member, dropping any filter name the host reports as unknown and
  * retrying.
@@ -68,15 +70,11 @@ export declare function memberToolFilter(maxDepth: number | undefined, knownTool
  * cases that resolution cannot see — no registry view, a name that is known but
  * not restrictable, a composition that mounted differently than expected. The
  * host names the offenders in its rejection, so they are removed and the start
- * retried; the retry only runs while the deny list strictly shrinks, and any
+ * retried; the retry only runs while the filter strictly shrinks, and any
  * failure that is not an unknown-name report propagates untouched.
  * @param start - performs one start attempt for the given `toolFilter`.
  * @param filter - the filter to attempt first.
  * @returns the started member.
  */
-export declare function startMemberWithLenientFilter<T>(start: (filter: {
-    deny: string[];
-}) => Promise<T>, filter: {
-    deny: string[];
-}): Promise<T>;
+export declare function startMemberWithLenientFilter<T>(start: (filter: MemberToolFilter) => Promise<T>, filter: MemberToolFilter): Promise<T>;
 export {};

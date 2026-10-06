@@ -157,6 +157,12 @@ export interface TeamMember {
     activeModel?: string;
     /** Whether the fallback route is currently active. */
     fallbackActive?: boolean;
+    /** Whitelist of tool names available to this member. When set, only these tools are allowed. */
+    tools?: string[];
+    /** Whether this member is an ephemeral micro-worker (one task per session). */
+    ephemeral?: boolean;
+    /** When true, strips DSH global system prompt bloat down to a minimal task prompt (<500 tokens). */
+    minimalPrompt?: boolean;
     joinedAt: number;
     status: MemberStatus;
     /** Execution admission is closed while a failed/pending handoff is drained. */

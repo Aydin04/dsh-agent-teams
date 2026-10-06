@@ -65,6 +65,7 @@ export interface DispatchTicket {
     readonly acceptance?: readonly string[];
     readonly verify?: readonly string[];
     readonly reviewedTaskId?: string;
+    readonly minimalPrompt?: boolean;
 }
 /**
  * Recursively collect `status=completed` ancestors of `taskId` in topological
