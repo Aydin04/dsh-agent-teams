@@ -533,6 +533,20 @@ export function memberPersona(team: TeamState, member: TeamMember, stateDir: str
   const goal = team.description?.trim() || '(not provided)'
   const injectedPrompt = member.executionPrompt?.trim() || executionPrompt?.trim()
   const protocol = truncatedPersonaProtocol(team.profile?.protocol)
+
+  // Minimal prompt mode for local/small LLMs (e.g. Qwen 1.5B) or ephemeral micro-workers
+  if (member.minimalPrompt === true || member.ephemeral === true) {
+    return `You are ${member.name}, a micro-worker in team "${team.name}".
+Role: ${member.role ?? 'worker'}. Team ID: ${team.id}.
+${injectedPrompt ? `Instructions: ${injectedPrompt}\n` : ''}Rules:
+1. When assigned a task, claim it via agent_teams_claim_task(task_id).
+2. Set status to in_progress via agent_teams_update_task.
+3. Perform the task cleanly using your available tools.
+4. When finished, call agent_teams_update_task with status=completed (or failed), attempt_id, and concise output.
+5. Report to captain: agent_teams_send_message(to="captain", content="done/blocked", source_task_id=task_id, source_attempt_id=attempt_id).
+6. Output 100% strict JSON or minimal text. No conversational filler.`
+  }
+
   return `You are ${member.name}, a member of the multi-agent team "${team.name}" running inside DeepSeek Harness AgentTeams. The captain leads the team; you are a worker member${member.role ? ` with the role: ${member.role}` : ''}.
 
 Team context:
@@ -651,7 +665,7 @@ export async function spawnMember(
         },
         signal,
       }),
-      memberToolFilter(config.maxDepth, restrictableToolNames(captain)),
+      memberToolFilter(config.maxDepth, restrictableToolNames(captain), member.tools),
     )
   ))
   member.id = start.childId

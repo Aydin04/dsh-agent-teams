@@ -20,7 +20,7 @@ export const PROFILE_PROTOCOL_PROMPT_LIMIT = 240
 
 const PROFILE_KEYS = ['description', 'protocol', 'executionPrompt', 'fallback', 'members', 'tasks', 'taskPlanning', 'reviewPolicy'] as const
 const REVIEW_POLICY_KEYS = ['requirementsMinRounds', 'requirementsMaxRounds', 'codeMaxRounds', 'maxRepairAttempts', 'requiredReviewers'] as const
-const MEMBER_KEYS = ['name', 'role', 'provider', 'model', 'reasoning_effort', 'executionPrompt', 'fallback'] as const
+const MEMBER_KEYS = ['name', 'role', 'provider', 'model', 'reasoning_effort', 'executionPrompt', 'fallback', 'tools', 'minimal_prompt', 'minimalPrompt', 'ephemeral'] as const
 const FALLBACK_KEYS = ['provider', 'model'] as const
 const TASK_KEYS = ['id', 'subject', 'description', 'assignee', 'dependencies'] as const
 
@@ -38,6 +38,10 @@ export interface TeamProfileMemberConfig {
   reasoning_effort?: string
   executionPrompt?: string
   fallback?: TeamModelFallbackConfig
+  tools?: string[]
+  minimal_prompt?: boolean
+  minimalPrompt?: boolean
+  ephemeral?: boolean
 }
 
 /** One seed-task row in a named team-profile template (unresolved). */
@@ -75,6 +79,9 @@ export interface NormalizedProfileMember {
   reasoningEffort?: string
   executionPrompt?: string
   fallback?: TeamModelFallbackConfig
+  tools?: string[]
+  minimalPrompt?: boolean
+  ephemeral?: boolean
 }
 
 /** A profile seed task after assignee canonicalization; `sourceIndex` is the YAML order. */
@@ -460,10 +467,13 @@ function normalizeMember(
   const reasoningEffort = optionalNonEmptyString(raw['reasoning_effort'], `${path}.reasoning_effort`)
   const executionPrompt = optionalNonEmptyString(raw['executionPrompt'], `${path}.executionPrompt`)
   const fallback = normalizeFallback(raw['fallback'], `${path}.fallback`)
+  const tools = Array.isArray(raw['tools']) ? raw['tools'].map(String) : undefined
+  const minimalPrompt = typeof raw['minimal_prompt'] === 'boolean' ? raw['minimal_prompt'] : (typeof raw['minimalPrompt'] === 'boolean' ? raw['minimalPrompt'] : undefined)
+  const ephemeral = typeof raw['ephemeral'] === 'boolean' ? raw['ephemeral'] : undefined
   if (provider !== undefined && model === undefined) {
     throw new Error(`profile member "${name}" sets provider without model`)
   }
-  return omitUndefined({ name, role, provider, model, reasoningEffort, executionPrompt, fallback })
+  return omitUndefined({ name, role, provider, model, reasoningEffort, executionPrompt, fallback, tools, minimalPrompt, ephemeral })
 }
 
 function normalizeFallback(value: unknown, path: string): TeamModelFallbackConfig | undefined {

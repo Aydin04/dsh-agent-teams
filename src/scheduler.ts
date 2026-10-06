@@ -90,6 +90,7 @@ export interface DispatchTicket {
   readonly acceptance?: readonly string[]
   readonly verify?: readonly string[]
   readonly reviewedTaskId?: string
+  readonly minimalPrompt?: boolean
 }
 
 function taskProfileSeedId(task: TeamTask): string | undefined {
@@ -207,6 +208,24 @@ function nextReadyTask(tasks: readonly TeamTask[], memberName: string): TeamTask
 export function assignmentPrompt(ticket: DispatchTicket, stateDir: string, teamId: string): string {
   const description = ticket.description === undefined ? '' : `\n\n${ticket.description}`
   const seed = ticket.profileSeedId === undefined ? '' : ` [${ticket.profileSeedId}]`
+
+  // Minimal prompt mode for local/small LLMs or ephemeral micro-workers
+  if (ticket.minimalPrompt === true) {
+    return `[Task Assignment]
+Task: ${ticket.taskId} — ${ticket.subject}${description}
+Attempt: ${ticket.attempt} (id: ${ticket.attemptId})
+Dependencies:
+${formatDependencyOutputs(ticket.dependencyOutputs) || '(none)'}
+
+Instructions:
+1. Call agent_teams_claim_task(task_id="${ticket.taskId}")
+2. Call agent_teams_update_task(task_id="${ticket.taskId}", attempt_id="${ticket.attemptId}", status="in_progress")
+3. Execute the task.
+4. When done, call agent_teams_update_task(task_id="${ticket.taskId}", attempt_id="${ticket.attemptId}", status="completed", output="...")
+5. Report: agent_teams_send_message(to="captain", content="Completed ${ticket.taskId}", source_task_id="${ticket.taskId}", source_attempt_id="${ticket.attemptId}")
+6. Output 100% strict JSON.`
+  }
+
   const goal = ticket.teamDescription?.trim() || '(not provided)'
   const protocol = ticket.profileProtocol?.trim() || '(none)'
   const executionPrompt = ticket.executionPrompt?.trim()
@@ -409,6 +428,7 @@ export function installTeamScheduler(ctx: Context, config: SchedulerConfig): Tea
             ...task.acceptance === undefined ? {} : { acceptance: task.acceptance },
             ...task.verify === undefined ? {} : { verify: task.verify },
             ...task.reviewedTaskId === undefined ? {} : { reviewedTaskId: task.reviewedTaskId },
+            minimalPrompt: currentMember.minimalPrompt === true || currentMember.ephemeral === true,
             dependencyOutputs: collectCompletedDependencyOutputs(
               fresh.tasks,
               task.id,

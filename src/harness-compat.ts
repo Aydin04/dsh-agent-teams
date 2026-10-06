@@ -279,14 +279,33 @@ export function restrictableToolNames(agent: Agent): ReadonlySet<string> | undef
  * Depth enforcement itself does not depend on these names —
  * installMemberDelegationGuard bounds descendant creation by parent chain.
  */
-export function memberToolFilter(maxDepth: number | undefined, knownTools: ReadonlySet<string> | undefined): { deny: string[] } {
+export interface MemberToolFilter {
+  allow?: string[]
+  deny?: string[]
+}
+
+export function memberToolFilter(
+  maxDepth: number | undefined,
+  knownTools: ReadonlySet<string> | undefined,
+  memberAllowedTools?: readonly string[],
+): MemberToolFilter {
   const depthDeny = maxDepth === 0 ? ['subagent', 'send_message'] : []
-  return {
-    deny: [
-      ...CAPTAIN_TOOL_NAMES,
-      ...(knownTools === undefined ? depthDeny : depthDeny.filter(name => knownTools.has(name))),
-    ],
+  const baseDeny = [
+    ...CAPTAIN_TOOL_NAMES,
+    ...(knownTools === undefined ? depthDeny : depthDeny.filter(name => knownTools.has(name))),
+  ]
+
+  if (memberAllowedTools !== undefined && memberAllowedTools.length > 0) {
+    // If the member specifies allowed tools, ensure captain-only tools are never allowed
+    const captainSet = new Set<string>(CAPTAIN_TOOL_NAMES)
+    const filteredAllow = memberAllowedTools.filter(name => !captainSet.has(name))
+    return {
+      allow: knownTools === undefined ? filteredAllow : filteredAllow.filter(name => knownTools.has(name)),
+      deny: baseDeny,
+    }
   }
+
+  return { deny: baseDeny }
 }
 
 /**
@@ -311,25 +330,44 @@ function unknownToolNames(error: unknown): string[] {
  * cases that resolution cannot see — no registry view, a name that is known but
  * not restrictable, a composition that mounted differently than expected. The
  * host names the offenders in its rejection, so they are removed and the start
- * retried; the retry only runs while the deny list strictly shrinks, and any
+ * retried; the retry only runs while the filter strictly shrinks, and any
  * failure that is not an unknown-name report propagates untouched.
  * @param start - performs one start attempt for the given `toolFilter`.
  * @param filter - the filter to attempt first.
  * @returns the started member.
  */
 export async function startMemberWithLenientFilter<T>(
-  start: (filter: { deny: string[] }) => Promise<T>,
-  filter: { deny: string[] },
+  start: (filter: MemberToolFilter) => Promise<T>,
+  filter: MemberToolFilter,
 ): Promise<T> {
-  let deny = [...filter.deny]
+  let deny = filter.deny === undefined ? undefined : [...filter.deny]
+  let allow = filter.allow === undefined ? undefined : [...filter.allow]
   for (;;) {
     try {
-      return await start({ deny })
+      const activeFilter: MemberToolFilter = {
+        ...(allow !== undefined ? { allow } : {}),
+        ...(deny !== undefined ? { deny } : {}),
+      }
+      return await start(activeFilter)
     } catch (error: unknown) {
       const unknown = unknownToolNames(error)
-      const remaining = deny.filter(name => !unknown.includes(name))
-      if (unknown.length === 0 || remaining.length === deny.length) throw error
-      deny = remaining
+      if (unknown.length === 0) throw error
+      let changed = false
+      if (deny !== undefined) {
+        const remainingDeny = deny.filter(name => !unknown.includes(name))
+        if (remainingDeny.length !== deny.length) {
+          deny = remainingDeny
+          changed = true
+        }
+      }
+      if (allow !== undefined) {
+        const remainingAllow = allow.filter(name => !unknown.includes(name))
+        if (remainingAllow.length !== allow.length) {
+          allow = remainingAllow
+          changed = true
+        }
+      }
+      if (!changed) throw error
     }
   }
 }
