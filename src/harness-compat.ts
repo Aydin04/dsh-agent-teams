@@ -299,8 +299,13 @@ export function memberToolFilter(
     // If the member specifies allowed tools, ensure captain-only tools are never allowed
     const captainSet = new Set<string>(CAPTAIN_TOOL_NAMES)
     const filteredAllow = memberAllowedTools.filter(name => !captainSet.has(name))
+    // When running under PTC or when knownTools is incomplete/empty, do not discard memberAllowedTools;
+    // let startMemberWithLenientFilter handle any tools truly unknown to the host.
+    const effectiveAllow = (knownTools !== undefined && knownTools.size > 0)
+      ? filteredAllow.filter(name => knownTools.has(name))
+      : filteredAllow
     return {
-      allow: knownTools === undefined ? filteredAllow : filteredAllow.filter(name => knownTools.has(name)),
+      allow: effectiveAllow.length > 0 ? effectiveAllow : filteredAllow,
       deny: baseDeny,
     }
   }
